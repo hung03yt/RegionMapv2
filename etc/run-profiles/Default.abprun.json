@@ -1,0 +1,14 @@
+﻿{
+  "applications": {
+    "RegionMap": {
+      "type": "dotnet-project",
+      "launchUrl": "https://localhost:44331",
+      "healthCheckEndpoint": "/health-status",
+      "healthUiEndpoint": "/health-ui",
+      "path": "../../RegionMap/RegionMap.csproj",
+      "execution": {
+        "order": 0
+      }
+    }
+  }
+}
