@@ -8,7 +8,8 @@ Dịch vụ cung cấp API để chuyển tên địa phương/địa điểm t�
 
 - .NET SDK 10.x (phiên bản .NET 10 được dùng trong repo này)
 - PostgreSQL (để chạy tích hợp cục bộ nếu cần)
-- (Tùy chọn) Redis, RabbitMQ, Prometheus, Elasticsearch — có thể tắt để chạy local. Các flag cấu hình liên quan nằm trong `appsettings.json`.
+- nodejs
+- Abp CLI (nếu chưa có, di chuyển đến root của project và sử dụng lệnh dotnet tool install -g Volo.Abp.Cli )
 
 ## Database
 
