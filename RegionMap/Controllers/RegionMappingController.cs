@@ -82,7 +82,9 @@ public class RegionMappingController : ControllerBase
                 var wardNewSql = @"
                     SELECT
                         p.province_name AS ProvinceName,
+                        p.province_code AS ProvinceCode,
                         w.ward_name     AS WardName,
+                        w.ward_code     AS WardCode,
                         wm.is_ambigious AS IsAmbigious
                     FROM dvhc_new_ward_mapping wm
                     JOIN dvhc_new_provinces p ON p.province_id = wm.province_new_id
@@ -101,10 +103,36 @@ public class RegionMappingController : ControllerBase
                 var code = (wardResult.IsAmbigious.HasValue && wardResult.IsAmbigious.Value == 1) ? "AMBIGUOUS" : "FOUND";
                 if (code == "AMBIGUOUS")
                 {
-                    return Ok(new RegionResolveResultDto { Status = true, Code = code, Message = "unit AMBIGUOUS", Data = new RegionResolveDataDto { ProvinceName = wardResult.ProvinceName, WardName = null, StreetAddress = input.StreetAddress } });
+                    return Ok(new RegionResolveResultDto
+                    {
+                        Status = true,
+                        Code = code,
+                        Message = "unit AMBIGUOUS",
+                        Data = new RegionResolveDataDto
+                        {
+                            ProvinceName = wardResult.ProvinceName,
+                            ProvinceCode = wardResult.ProvinceCode,
+                            WardName = null,
+                            WardCode = null,
+                            StreetAddress = input.StreetAddress
+                        }
+                    });
                 }
 
-                return Ok(new RegionResolveResultDto { Status = true, Code = code, Message = "unit FOUND", Data = new RegionResolveDataDto { ProvinceName = wardResult.ProvinceName, WardName = wardResult.WardName, StreetAddress = input.StreetAddress } });
+                return Ok(new RegionResolveResultDto
+                {
+                    Status = true,
+                    Code = code,
+                    Message = "unit FOUND",
+                    Data = new RegionResolveDataDto
+                    {
+                        ProvinceName = wardResult.ProvinceName,
+                        ProvinceCode = wardResult.ProvinceCode,
+                        WardName = wardResult.WardName,
+                        WardCode = wardResult.WardCode,
+                        StreetAddress = input.StreetAddress
+                    }
+                });
             }
 
             // empty ward -> province only flow
@@ -127,16 +155,16 @@ public class RegionMappingController : ControllerBase
             }
 
             var provinceNewSql = @"
-                SELECT p.province_name AS ProvinceName
+                SELECT p.province_name AS ProvinceName, p.province_code AS ProvinceCode
                 FROM dvhc_new_provinces_mapping pm
                 JOIN dvhc_new_provinces p ON p.province_id = pm.province_new_id
                 WHERE pm.province_old_id = @ProvinceOldId
                 LIMIT 1
             ";
 
-            var newProvinceName = await connection.QueryFirstOrDefaultAsync<string>(provinceNewSql, new { ProvinceOldId = provinceOldId.Value });
+            var newProvince = await connection.QueryFirstOrDefaultAsync<RegionNewMappingDto>(provinceNewSql, new { ProvinceOldId = provinceOldId.Value });
 
-            if (newProvinceName == null)
+            if (newProvince == null)
             {
                 return Ok(new RegionResolveResultDto
                 {
@@ -159,8 +187,10 @@ public class RegionMappingController : ControllerBase
                 Message = "unit FOUND",
                 Data = new RegionResolveDataDto
                 {
-                    ProvinceName = newProvinceName,
+                    ProvinceName = newProvince.ProvinceName,
+                    ProvinceCode = newProvince.ProvinceCode,
                     WardName = null,
+                    WardCode = null,
                     StreetAddress = input.StreetAddress
                 }
             });

@@ -33,6 +33,12 @@ Chuột phải vào database mới, chọn restore
 Chọn file .sql tương ứng
 Nhấn Restore
 
+## Cài đặt
+Mở `pwsh` tại thư mục gốc của repository rồi chạy:
+abp install-libs
+
+Cài đặt các database đã nhắc đến ở trên
+
 ## Các lệnh cơ bản (PowerShell)
 
 Mở `pwsh` tại thư mục gốc của repository rồi chạy:
@@ -44,9 +50,18 @@ dotnet build .\RegionMap.sln -c Debug
 dotnet run --project .\RegionMap\RegionMap.csproj -c Debug
 ```
 
+## Lưu ý
+Trong trường hợp có lỗi xảy ra do lỗi tin cậy chứng chỉ:
+dotnet dev-certs https --trust --verbose
+
+Nếu không được, thử:
+dotnet dev-certs https --clean
+dotnet dev-certs https --trust
+*Phương pháp 2 này sẽ loại bỏ toàn bộ chứng chỉ dev trên thiết bị nên ưu tiên sử dụng phương pháp 1 trước*
+
 ## Endpoint chính
 
-- POST `/api/app/region-mapping/resolve` — nhập JSON chứa các trường (snake_case)
+- POST `/api/region-mapping/resolve` — nhập JSON chứa các trường (snake_case)
 
 Input mẫu (`RegionOldMappingDto`):
 
@@ -63,13 +78,15 @@ Response mẫu:
 
 ```json
 {
-  "status": true,
-  "code": "FOUND",
-  "message": "Code_FOUND",
-  "data": {
-    "province_name": "Hà Nội",
-    "ward_name": "Phúc Xá",
-    "street_address": "Số 1, Phố X"
-  }
+    "status": true,
+    "code": "FOUND",
+    "message": "unit FOUND",
+    "data": {
+        "province_name": "Thành phố Hà Nội",
+        "province_code": "01",
+        "ward_name": "Phường Ba Đình",
+        "ward_code": "00004",
+        "street_address": "Số 1, Phố X"
+    }
 }
 ```
