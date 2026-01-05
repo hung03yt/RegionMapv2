@@ -91,3 +91,7 @@ Response mẫu:
     }
 }
 ```
+
+### Log
+Các response có status = false được viết vào RegionMap/Logs/bad_responses.txt, định dạng:
+YYYY-MM-DDThh:mm:ss ERROR: <JSON của status lỗi kèm thời gian>

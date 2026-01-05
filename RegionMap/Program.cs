@@ -46,6 +46,8 @@ public class Program
 
             builder.Services.AddEntityFrameworkNpgsql();
 
+            builder.Services.AddSingleton<RegionMap.Services.Logging.IJsonLineLogger, RegionMap.Services.Logging.JsonLineFileLogger>();
+
             // ----------------------------
             // ABP application
             // ----------------------------

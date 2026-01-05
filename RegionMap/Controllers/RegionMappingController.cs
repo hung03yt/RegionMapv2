@@ -4,6 +4,8 @@ using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dapper;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RegionMap.Services;
 using RegionMap.Data;
+using RegionMap.Services.Logging;
 using Volo.Abp.Auditing;
 
 namespace RegionMap.Controllers;
@@ -24,10 +27,14 @@ namespace RegionMap.Controllers;
 public class RegionMappingController : ControllerBase
 {
     private readonly RegionMapDbContext _dbContext;
+    private readonly ILogger<RegionMappingController> _logger;
+    private readonly IJsonLineLogger _jsonLogger;
 
-    public RegionMappingController(RegionMapDbContext dbContext)
+    public RegionMappingController(RegionMapDbContext dbContext, ILogger<RegionMappingController> logger, IJsonLineLogger jsonLogger)
     {
         _dbContext = dbContext;
+        _logger = logger;
+        _jsonLogger = jsonLogger;
     }
 
     [HttpPost("resolve")]
@@ -49,34 +56,42 @@ public class RegionMappingController : ControllerBase
             {
                 if (string.IsNullOrWhiteSpace(districtNorm))
                 {
-                    return Ok(new RegionResolveResultDto
+                    var res = new RegionResolveResultDto
                     {
                         Status = false,
                         Code = "NOT_FOUND",
                         Message = "district missing",
                         Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null }
-                    });
+                    };
+                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    return Ok(res);
                 }
 
                 // 1) province id
                 var provId = await GetUnitIdAsync(connection, provinceNorm, "PROVINCE", null);
                 if (!provId.HasValue)
                 {
-                    return Ok(new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } });
+                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
+                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    return Ok(res);
                 }
 
                 // 2) district id (must be child of province)
                 var districtId = await GetUnitIdAsync(connection, districtNorm, "DISTRICT", provId);
                 if (!districtId.HasValue)
                 {
-                    return Ok(new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } });
+                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
+                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    return Ok(res);
                 }
 
                 // 3) ward id (must be child of district)
                 var wardId = await GetUnitIdAsync(connection, wardNorm, "WARD", districtId);
                 if (!wardId.HasValue)
                 {
-                    return Ok(new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } });
+                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
+                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    return Ok(res);
                 }
 
                 var wardNewSql = @"
@@ -97,7 +112,9 @@ public class RegionMappingController : ControllerBase
 
                 if (wardResult == null)
                 {
-                    return Ok(new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } });
+                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
+                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    return Ok(res);
                 }
 
                 var code = (wardResult.IsAmbigious.HasValue && wardResult.IsAmbigious.Value == 1) ? "AMBIGUOUS" : "FOUND";
@@ -319,42 +336,55 @@ public class RegionMappingController : ControllerBase
         if (parentId.HasValue)
         {
             var aliasSqlWithParent = @"
-                SELECT a.unit_id FROM cores_units_old_alias a
+                SELECT a.unit_id
+                FROM cores_units_old_alias a
                 JOIN cores_units_old u ON u.id = a.unit_id
                 WHERE a.alias_norm = @Name
-                    AND a.is_active::text IN ('1','t','true')
-                    AND a.is_deleted::text IN ('0','f','false')
-                    AND u.level::text = @Level
-                    AND u.parent_id = @ParentId
-                    AND u.is_deleted::text IN ('0','f','false')
-                ORDER BY a.priority
+                AND a.is_active::text IN ('1','t','true')
+                AND a.is_deleted::text IN ('0','f','false')
+                AND u.parent_id = @ParentId
+                AND u.is_deleted::text IN ('0','f','false')
+                ORDER BY a.priority ASC
                 LIMIT 1
             ";
+
             foreach (var candidate in candidates)
             {
-                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(aliasSqlWithParent, new { Name = candidate, Level = level, ParentId = parentId.Value });
-                if (aliasId.HasValue) return aliasId;
+                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(
+                    aliasSqlWithParent,
+                    new { Name = candidate, ParentId = parentId.Value }
+                );
+
+                if (aliasId.HasValue)
+                    return aliasId;
             }
         }
         else
         {
             var aliasSqlNoParent = @"
-                SELECT a.unit_id FROM cores_units_old_alias a
+                SELECT a.unit_id
+                FROM cores_units_old_alias a
                 JOIN cores_units_old u ON u.id = a.unit_id
                 WHERE a.alias_norm = @Name
-                    AND a.is_active::text IN ('1','t','true')
-                    AND a.is_deleted::text IN ('0','f','false')
-                    AND u.level::text = @Level
-                    AND u.is_deleted::text IN ('0','f','false')
-                ORDER BY a.priority
+                AND a.is_active::text IN ('1','t','true')
+                AND a.is_deleted::text IN ('0','f','false')
+                AND u.is_deleted::text IN ('0','f','false')
+                ORDER BY a.priority ASC
                 LIMIT 1
             ";
+
             foreach (var candidate in candidates)
             {
-                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(aliasSqlNoParent, new { Name = candidate, Level = level });
-                if (aliasId.HasValue) return aliasId;
+                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(
+                    aliasSqlNoParent,
+                    new { Name = candidate }
+                );
+
+                if (aliasId.HasValue)
+                    return aliasId;
             }
         }
+
 
         return null;
     }
