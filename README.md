@@ -94,4 +94,29 @@ Response mẫu:
 
 ### Log
 Các response có status = false được viết vào RegionMap/Logs/bad_responses.txt, định dạng:
-YYYY-MM-DDThh:mm:ss ERROR: <JSON của status lỗi kèm thời gian>
+YYYY-MM-DDThh:mm:ss ERROR: <JSON của request lỗi kèm thời gian>
+
+JSON ví dụ:
+{
+  "time": "2026-01-05T17:36:41.5007503+07:00",
+  "response": {
+    "request": {
+      "province_name": "Thành phố Hà Nội",
+      "district_name": "Quận Đống Đa",
+      "ward_name": "dfhfghyfjfg",
+      "street_address": "Số 1 Tôn Thất Tùng"
+    },
+    "response": {
+      "status": false,
+      "code": "NOT_FOUND",
+      "message": "unit NOT_FOUND",
+      "data": {
+        "province_name": null,
+        "province_code": null,
+        "ward_name": null,
+        "ward_code": null,
+        "street_address": null
+      }
+    }
+  }
+}

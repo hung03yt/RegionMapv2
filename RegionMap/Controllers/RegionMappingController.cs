@@ -80,7 +80,7 @@ public class RegionMappingController : ControllerBase
                         Message = "district missing",
                         Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null }
                     };
-                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
 
@@ -89,7 +89,7 @@ public class RegionMappingController : ControllerBase
                 if (!provId.HasValue)
                 {
                     var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
-                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
 
@@ -98,7 +98,7 @@ public class RegionMappingController : ControllerBase
                 if (!districtId.HasValue)
                 {
                     var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
-                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
 
@@ -107,7 +107,7 @@ public class RegionMappingController : ControllerBase
                 if (!wardId.HasValue)
                 {
                     var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
-                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
 
@@ -130,7 +130,7 @@ public class RegionMappingController : ControllerBase
                 if (wardResult == null)
                 {
                     var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
-                    await _jsonLogger.AppendJsonLineAsync(res, "bad_responses.txt", includeTime: true);
+                    await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
 
