@@ -42,7 +42,24 @@ public class RegionMappingController : ControllerBase
     {
         try
         {
-            if (input == null) throw new ArgumentNullException(nameof(input));
+            if (input == null || string.IsNullOrWhiteSpace(input.ProvinceName))
+            {
+                return StatusCode(StatusCodes.Status200OK,
+                    new RegionResolveResultDto
+                    {
+                        Status = false,
+                        Code = "NOT_FOUND",
+                        Message = "missing province",
+                        Data = new RegionResolveDataDto
+                        {
+                            ProvinceName = null,
+                            ProvinceCode = null,
+                            WardName = null,
+                            WardCode = null,
+                            StreetAddress = null
+                        }
+                    });
+            }
 
             var provinceNorm = Normalize(input.ProvinceName);
             var districtNorm = Normalize(input.DistrictName ?? string.Empty);
