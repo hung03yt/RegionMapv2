@@ -24,6 +24,7 @@ public static class HealthChecksBuilderExtensions
         var healthChecksUiBuilder = services.AddHealthChecksUI(settings =>
         {
             settings.AddHealthCheckEndpoint("RegionMap Health Status", healthCheckUrl);
+            settings.SetEvaluationTimeInSeconds(999999);//never check
         });
 
         // Set your HealthCheck UI Storage here

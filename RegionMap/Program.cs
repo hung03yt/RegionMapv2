@@ -35,6 +35,13 @@ public class Program
                 .UseAutofac()
                 .UseSerilog();
 
+            // Make Kestrel listen on all network interfaces for HTTP so the service is reachable from LAN.
+            // We bind HTTP on port 5000. HTTPS on non-localhost requires a valid certificate and is not configured here.
+            // builder.WebHost.ConfigureKestrel(options =>
+            // {
+            //     options.ListenAnyIP(5000); // HTTP
+            // });
+
             // ----------------------------
             // PostgreSQL + EF Core (NO repos, NO migrations)
             // ----------------------------
