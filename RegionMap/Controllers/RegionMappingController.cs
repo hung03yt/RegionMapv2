@@ -275,8 +275,15 @@ public class RegionMappingController : ControllerBase
         var withoutDiacritics = sb.ToString().Normalize(NormalizationForm.FormC);
 
         // Remove punctuation and collapse whitespace
-        withoutDiacritics = Regex.Replace(withoutDiacritics, "[^0-9a-zA-Z\\s]", " ");
+        withoutDiacritics = Regex.Replace(
+            withoutDiacritics,
+            @"[^0-9a-zA-Z\s\-]",
+            " "
+        );
         withoutDiacritics = Regex.Replace(withoutDiacritics, "\\s+", " ").Trim();
+
+        // Remove leading zeros from numbers
+        withoutDiacritics = Regex.Replace(withoutDiacritics, @"\b0+(?=\d)", "");
 
         return withoutDiacritics;
     }
