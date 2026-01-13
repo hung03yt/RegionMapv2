@@ -18,16 +18,17 @@ Dịch vụ cung cấp API để chuyển tên địa phương/địa điểm t�
 ```
 "ConnectionStrings": {
   "Default": "Host=localhost;Port=5432;Database=RegionMap;User ID=postgres;Password=password;",
-  "RegionMappingService": "Host=localhost;Port=5432;Database=dvhc_region_map;User ID=postgres;Password=password;Timeout=240;"
+  "RegionMappingService": "Host=localhost;Port=5432;Database=dvhc_region_map_copy;User ID=postgres;Password=password;Timeout=240;"
 }
 ```
 
 - File `sql/dvhc_dump.sql` (nếu có trong repo) chứa thông tin để import dữ liệu vào PostgreSQL (database import sẽ là postgres theo nội dung hiện tại).
-- File `sql/regionmap_dump.sql` chứa thông tin abp của project.
+- File `sql/dvhc_mapping_copy_postgres.sql` chứa thông tin abp của project.
+- File regionmap_dump.sql deprecated
 
 - Cách import:
 Trong pgadmin4, chuột phải vào Servers/PostgreSQL xx/Database, chọn Create Database
-Chọn tên database là RegionMap với regionmap_dump.sql và dvhc_region_map với dvhc_dump.sql
+Chọn tên database là RegionMap với regionmap_dump.sql và dvhc_region_map_copy với dvhc_mapping_copy_postgres.sql
 Chuột phải vào database mới, chọn restore
 Ở Format, chọn Plain
 Ở Filename, nhấn để tìm file, chuyển định dạng tìm kiếm sang .sql
