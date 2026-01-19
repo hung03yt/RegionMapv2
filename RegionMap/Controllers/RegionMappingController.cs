@@ -91,33 +91,36 @@ public class RegionMappingController : ControllerBase
                         return Ok(res);
                     }
 
-                    // 1) province id
-                    var provId = await GetUnitIdAsync(connection, provinceNorm, "PROVINCE", null);
-                    if (!provId.HasValue)
+                    // 1) province id (may return 0 or 1 ids for now)
+                    var provIds = await GetUnitIdAsync(connection, provinceNorm, "PROVINCE", null);
+                    if (provIds == null || provIds.Length == 0)
                     {
                         var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
                         await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                         return Ok(res);
                     }
+                    var provId = provIds[0];
 
-                    // 2) district id (must be child of province)
-                    var districtId = await GetUnitIdAsync(connection, districtNorm, "DISTRICT", provId);
-                    if (!districtId.HasValue)
+                    // 2) district id (must be child of province) — query using all province ids
+                    var districtIds = await GetUnitIdAsync(connection, districtNorm, "DISTRICT", provIds);
+                    if (districtIds == null || districtIds.Length == 0)
                     {
                         var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
                         await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                         return Ok(res);
                     }
+                    var districtId = districtIds[0];
 
-                    // 3) ward id (must be child of district)
-                    var wardId = await GetUnitIdAsync(connection, wardNorm, "WARD", districtId);
-                    if (!wardId.HasValue)
+                    // 3) ward id (must be child of district) — query using all district ids
+                    var wardIds = await GetUnitIdAsync(connection, wardNorm, "WARD", districtIds);
+                    if (wardIds == null || wardIds.Length == 0)
                     {
                         var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
                         await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                         return Ok(res);
                     }
-                    wardIdValue = wardId.Value;
+                    var wardId = wardIds[0];
+                    wardIdValue = wardId;
                 }
                 var wardNewSql = @"
                     SELECT
@@ -140,7 +143,7 @@ public class RegionMappingController : ControllerBase
 
                 if (wardResult == null)
                 {
-                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = "unit NOT_FOUND", Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
+                    var res = new RegionResolveResultDto { Status = false, Code = "NOT_FOUND", Message = wardIdValue.ToString(), Data = new RegionResolveDataDto { ProvinceName = null, WardName = null, StreetAddress = null } };
                     await _jsonLogger.AppendJsonLineAsync(new { request = input, response = res }, "bad_responses.txt", includeTime: true, level: "ERROR");
                     return Ok(res);
                 }
@@ -228,9 +231,9 @@ public class RegionMappingController : ControllerBase
             }
 
             // empty ward -> province only flow
-            var provinceOldId = await GetUnitIdAsync(connection, provinceNorm, "PROVINCE", null);
+            var provinceOldIds = await GetUnitIdAsync(connection, provinceNorm, "PROVINCE", null);
 
-            if (!provinceOldId.HasValue)
+            if (provinceOldIds == null || provinceOldIds.Length == 0)
             {
                 return Ok(new RegionResolveResultDto
                 {
@@ -245,6 +248,7 @@ public class RegionMappingController : ControllerBase
                     }
                 });
             }
+            var provinceOldId = provinceOldIds[0];
 
             var provinceNewSql = @"
                 SELECT p.province_name AS ProvinceName, p.province_code AS ProvinceCode
@@ -254,7 +258,7 @@ public class RegionMappingController : ControllerBase
                 LIMIT 1
             ";
 
-            var newProvince = await connection.QueryFirstOrDefaultAsync<RegionNewMappingDto>(provinceNewSql, new { ProvinceOldId = provinceOldId.Value });
+            var newProvince = await connection.QueryFirstOrDefaultAsync<RegionNewMappingDto>(provinceNewSql, new { ProvinceOldId = provinceOldId });
 
             if (newProvince == null)
             {
@@ -383,7 +387,11 @@ public class RegionMappingController : ControllerBase
         input = input.Trim().ToLowerInvariant();
 
         // Replace common Vietnamese-specific characters
-        input = input.Replace('đ', 'd').Replace('Đ', 'd');
+        input = input
+        .Replace('\u0111', 'd') // đ
+        .Replace('\u0110', 'd') // Đ
+        .Replace('\u00F0', 'd') // ð (eth)
+        .Replace('\u00D0', 'd'); // Ð (eth)
 
         // Decompose and remove diacritics
         var normalized = input.Normalize(NormalizationForm.FormD);
@@ -411,21 +419,21 @@ public class RegionMappingController : ControllerBase
         return withoutDiacritics;
     }
 
-    private static async Task<long?> GetUnitIdAsync(IDbConnection connection, string nameNorm, string level, long? parentId)
+    private static async Task<long[]> GetUnitIdAsync(IDbConnection connection, string nameNorm, string level, long[]? parentIds)
     {
         if (string.IsNullOrWhiteSpace(nameNorm))
-            return null;
+            return Array.Empty<long>();
 
-        //lookup, no alias, normalized vs name_norm
-        if (parentId.HasValue)
+        // lookup, no alias, normalized vs name_norm
+        if (parentIds != null && parentIds.Length > 0)
         {
             var sqlWithParent = @"
                 SELECT id FROM cores_units_old
-                WHERE level::text = @Level AND parent_id = @ParentId AND name_norm = @Name AND is_deleted::text IN ('0','f','false')
+                WHERE level::text = @Level AND parent_id = ANY(@ParentIds) AND name_norm = @Name AND is_deleted::text IN ('0','f','false')
                 LIMIT 1
             ";
-            var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlWithParent, new { Level = level, ParentId = parentId.Value, Name = nameNorm });
-            if (id.HasValue) return id;
+            var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlWithParent, new { Level = level, ParentIds = parentIds, Name = nameNorm });
+            if (id.HasValue) return new[] { id.Value };
         }
         else
         {
@@ -435,7 +443,7 @@ public class RegionMappingController : ControllerBase
                 LIMIT 1
             ";
             var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlNoParent, new { Level = level, Name = nameNorm });
-            if (id.HasValue) return id;
+            if (id.HasValue) return new[] { id.Value };
         }
 
         // lookup, no alias, normalized core vs name_core_norm
@@ -452,17 +460,17 @@ public class RegionMappingController : ControllerBase
             }
         }
 
-        if (parentId.HasValue)
+        if (parentIds != null && parentIds.Length > 0)
         {
             var sqlWithParent = @"
                 SELECT id FROM cores_units_old
-                WHERE level::text = @Level AND parent_id = @ParentId AND name_core_norm = @Name AND is_deleted::text IN ('0','f','false')
+                WHERE level::text = @Level AND parent_id = ANY(@ParentIds) AND name_core_norm = @Name AND is_deleted::text IN ('0','f','false')
                 LIMIT 1
             ";
             foreach (var candidate in candidates)
             {
-                var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlWithParent, new { Level = level, ParentId = parentId.Value, Name = candidate });
-                if (id.HasValue) return id;
+                var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlWithParent, new { Level = level, ParentIds = parentIds, Name = candidate });
+                if (id.HasValue) return new[] { id.Value };
             }
         }
         else
@@ -475,12 +483,13 @@ public class RegionMappingController : ControllerBase
             foreach (var candidate in candidates)
             {
                 var id = await connection.QueryFirstOrDefaultAsync<long?>(sqlNoParent, new { Level = level, Name = candidate });
-                if (id.HasValue) return id;
+                if (id.HasValue) return new[] { id.Value };
             }
         }
 
         //direct lookup failed, try alias
-        if (parentId.HasValue)
+        // direct lookup failed, try alias
+        if (parentIds != null && parentIds.Length > 0)
         {
             var aliasSqlWithParent = @"
                 SELECT a.unit_id
@@ -489,21 +498,20 @@ public class RegionMappingController : ControllerBase
                 WHERE a.alias_norm = @Name
                 AND a.is_active::text IN ('1','t','true')
                 AND a.is_deleted::text IN ('0','f','false')
-                AND u.parent_id = @ParentId
+                AND u.parent_id = ANY(@ParentIds)
                 AND u.is_deleted::text IN ('0','f','false')
                 ORDER BY a.priority ASC
-                LIMIT 1
             ";
 
             foreach (var candidate in candidates)
             {
-                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(
+                var aliasIds = (await connection.QueryAsync<long>(
                     aliasSqlWithParent,
-                    new { Name = candidate, ParentId = parentId.Value, Level = level }
-                );
+                    new { Name = candidate, ParentIds = parentIds, Level = level }
+                )).ToArray();
 
-                if (aliasId.HasValue)
-                    return aliasId;
+                if (aliasIds != null && aliasIds.Length > 0)
+                    return aliasIds;
             }
         }
         else
@@ -518,23 +526,22 @@ public class RegionMappingController : ControllerBase
                 AND a.is_deleted::text IN ('0','f','false')
                 AND u.is_deleted::text IN ('0','f','false')
                 ORDER BY a.priority ASC
-                LIMIT 1
             ";
 
             foreach (var candidate in candidates)
             {
-                var aliasId = await connection.QueryFirstOrDefaultAsync<long?>(
+                var aliasIds = (await connection.QueryAsync<long>(
                     aliasSqlNoParent,
                     new { Name = candidate, Level = level }
-                );
+                )).ToArray();
 
-                if (aliasId.HasValue)
-                    return aliasId;
+                if (aliasIds != null && aliasIds.Length > 0)
+                    return aliasIds;
             }
         }
 
 
-        return null;
+        return Array.Empty<long>();
     }
 
     private static List<string> BuildCandidates(string nameNorm)
